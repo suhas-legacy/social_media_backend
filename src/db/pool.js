@@ -14,6 +14,10 @@ const pool = new Pool({
   }
 });
 
+pool.on('connect', (client) => {
+  client.query('SET search_path TO leads_dashboard, public;');
+});
+
 pool.on('error', (err) => {
   console.error('Unexpected PostgreSQL client error:', err);
   process.exit(-1);
