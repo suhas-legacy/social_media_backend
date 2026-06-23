@@ -68,15 +68,15 @@ CREATE TABLE leads (
   batch_id         UUID          REFERENCES upload_batches(id) ON DELETE SET NULL,
 
   -- Core contact info
-  full_name        VARCHAR(200),
+  full_name        TEXT,
   email            VARCHAR(255),
   phone            VARCHAR(50),
-  company          VARCHAR(200),
-  job_title        VARCHAR(200),
-  location         VARCHAR(200),
-  website          VARCHAR(300),
-  linkedin_url     VARCHAR(300),
-  profile_image    VARCHAR(500),
+  company          TEXT,
+  job_title        TEXT,
+  location         TEXT,
+  website          TEXT,
+  linkedin_url     TEXT,
+  profile_image    TEXT,
 
   -- Source metadata
   source           lead_source   NOT NULL DEFAULT 'other',

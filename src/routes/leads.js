@@ -107,14 +107,23 @@ router.get('/:id', authenticate, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ─── POST /api/leads/upload  (Admin only, CSV or JSON) ──────────────────────
-router.post('/upload', authenticate, requireAdmin, upload.single('file'), async (req, res, next) => {
+// ─── POST /api/leads/upload  (Admin or Employee, CSV or JSON) ────────────────
+router.post('/upload', authenticate, upload.single('file'), async (req, res, next) => {
   const client = await getClient();
   try {
     await client.query('BEGIN');
 
     const { employee_ids, source_platform = 'other', assign_equally = 'true' } = req.body;
-    const employeeIds = JSON.parse(employee_ids || '[]');
+    
+    let employeeIds = [];
+    let shouldAssign = false;
+    if (req.user.role === 'admin') {
+      employeeIds = JSON.parse(employee_ids || '[]');
+      shouldAssign = employeeIds.length && assign_equally === 'true';
+    } else {
+      employeeIds = [req.user.id];
+      shouldAssign = true;
+    }
 
     let rawLeads = [];
 
@@ -175,8 +184,8 @@ router.post('/upload', authenticate, requireAdmin, upload.single('file'), async 
       insertedIds.push(r.rows[0].id);
     }
 
-    // Assign leads equally if employees selected
-    if (employeeIds.length && assign_equally === 'true') {
+    // Assign leads equally if employees selected, or force assign to employee uploading
+    if (shouldAssign) {
       const assignments = distributeLeads(insertedIds, employeeIds);
       for (const { employeeId, leads: leadBatch } of assignments) {
         if (!leadBatch.length) continue;
@@ -270,6 +279,62 @@ router.patch('/:id/assign', authenticate, requireAdmin, async (req, res, next) =
     const assignedVal = employee_id || null;
     await query('UPDATE leads SET assigned_to = $1 WHERE id = $2', [assignedVal, req.params.id]);
     res.json({ message: 'Lead reassigned successfully' });
+  } catch (err) { next(err); }
+});
+
+// ─── PATCH /api/leads/:id  (Edit lead details) ───────────────────────────────
+router.patch('/:id', authenticate, async (req, res, next) => {
+  try {
+    const {
+      full_name, email, phone, company, job_title,
+      location, website, linkedin_url, priority
+    } = req.body;
+
+    const existing = await query('SELECT * FROM leads WHERE id = $1', [req.params.id]);
+    if (!existing.rows.length) return res.status(404).json({ error: 'Lead not found' });
+
+    const lead = existing.rows[0];
+    if (req.user.role === 'employee' && lead.assigned_to !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const updates = [];
+    const params = [];
+    let p = 1;
+
+    const addField = (val, name) => {
+      if (val !== undefined) {
+        updates.push(`${name} = $${p++}`);
+        params.push(val);
+      }
+    };
+
+    addField(full_name, 'full_name');
+    addField(email, 'email');
+    addField(phone, 'phone');
+    addField(company, 'company');
+    addField(job_title, 'job_title');
+    addField(location, 'location');
+    addField(website, 'website');
+    addField(linkedin_url, 'linkedin_url');
+    if (priority !== undefined) {
+      addField(parseInt(priority), 'priority');
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    params.push(req.params.id);
+    const sql = `
+      UPDATE leads
+      SET ${updates.join(', ')}
+      WHERE id = $${p}
+      RETURNING *
+    `;
+
+    const result = await query(sql, params);
+    res.json({ message: 'Lead updated successfully', lead: result.rows[0] });
   } catch (err) { next(err); }
 });
 
