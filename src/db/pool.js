@@ -9,9 +9,9 @@ const pool = new Pool({
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
-  //   ssl: {
-  //   rejectUnauthorized: true  // For local development only
-  // }
+    ssl: {
+    rejectUnauthorized: true  // For local development only
+  }
 });
 
 pool.on('connect', (client) => {
