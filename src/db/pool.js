@@ -10,7 +10,7 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
     ssl: {
-    rejectUnauthorized: true  // For local development only
+    rejectUnauthorized: false  // For local development only
   }
 });
 
